@@ -1,0 +1,11 @@
+# OS / editor
+.DS_Store
+Thumbs.db
+*.swp
+.vscode/
+.idea/
+
+# raw research / scratch (never commit)
+image-search/
+_scratch/
+node_modules/
