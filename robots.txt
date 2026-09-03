@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://roushan62.github.io/Azim-Khan/sitemap.xml
