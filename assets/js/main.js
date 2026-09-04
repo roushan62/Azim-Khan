@@ -3,8 +3,11 @@
   'use strict';
   const $ = (s, r = document) => r.querySelector(s);
   const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
-  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  const finePointer = window.matchMedia('(hover: hover) and (pointer: fine)').matches;
+  const mq = (q) => { try { return window.matchMedia(q); } catch (_) { return { matches: false, addEventListener: null, addListener: null }; } };
+  const onMQ = (m, fn) => { if (!m) return; if (m.addEventListener) m.addEventListener('change', fn); else if (m.addListener) m.addListener(fn); };
+  const reduce = mq('(prefers-reduced-motion: reduce)').matches;
+  const finePointer = mq('(hover: hover) and (pointer: fine)').matches;
+  const DESKTOP_NAV = '(min-width: 1025px)';
 
   /* ---------- Header: scrolled state, mobile menu, progress ---------- */
   const header = $('.header');
@@ -22,6 +25,7 @@
     ticking = false;
   }
   window.addEventListener('scroll', () => { if (!ticking) { requestAnimationFrame(onScroll); ticking = true; } }, { passive: true });
+  window.addEventListener('resize', () => { if (!ticking) { requestAnimationFrame(onScroll); ticking = true; } }, { passive: true });
   onScroll();
 
   const burger = $('.burger');
@@ -35,8 +39,10 @@
       document.body.style.overflow = open ? 'hidden' : '';
     });
     nav.addEventListener('click', (e) => { if (e.target.closest('a')) close(); });
-    window.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
-    window.matchMedia('(min-width: 961px)').addEventListener('change', (e) => { if (e.matches) close(); });
+    window.addEventListener('keydown', (e) => { if (e.key === 'Escape' && header.classList.contains('open')) { close(); burger.focus(); } });
+    onMQ(mq(DESKTOP_NAV), (e) => { if (e.matches) close(); });
+    // orientation change / soft-keyboard resize should not leave a half-open menu
+    window.addEventListener('orientationchange', close);
   }
   if (totop) totop.addEventListener('click', () => window.scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' }));
 
@@ -132,7 +138,12 @@
     next && next.addEventListener('click', () => { go(idx >= maxIdx() ? 0 : idx + 1); restart(); });
     let sTick = false;
     track.addEventListener('scroll', () => { if (!sTick) { requestAnimationFrame(() => { update(); sTick = false; }); sTick = true; } }, { passive: true });
-    window.addEventListener('resize', () => { gapCache = -1; update(); });
+    let rTimer = 0;
+    const remeasure = () => { gapCache = -1; update(); };
+    window.addEventListener('resize', () => { clearTimeout(rTimer); rTimer = setTimeout(remeasure, 120); }, { passive: true });
+    window.addEventListener('orientationchange', () => setTimeout(remeasure, 250));
+    window.addEventListener('load', remeasure);
+    if (document.fonts && document.fonts.ready) document.fonts.ready.then(remeasure).catch(() => {});
 
     // pointer drag (desktop)
     let down = false, startX = 0, startL = 0, moved = false;
@@ -152,6 +163,8 @@
       slider.addEventListener('pointerleave', restart);
       slider.addEventListener('focusin', () => clearInterval(timer));
       slider.addEventListener('focusout', restart);
+      slider.addEventListener('touchstart', () => clearInterval(timer), { passive: true });
+      slider.addEventListener('touchend', restart, { passive: true });
       document.addEventListener('visibilitychange', () => { document.hidden ? clearInterval(timer) : restart(); });
     }
     update();
@@ -186,7 +199,14 @@
     document.body.appendChild(lb);
     const img = $('img', lb), cap = $('figcaption', lb);
     let group = [], i = 0, lastFocus = null;
-    const show = () => { const a = group[i]; img.src = a.getAttribute('href'); img.alt = a.dataset.caption || ''; cap.textContent = a.dataset.caption || ''; };
+    const show = () => {
+      const a = group[i]; if (!a) return;
+      img.src = a.getAttribute('href');
+      img.alt = a.dataset.caption || '';
+      cap.textContent = a.dataset.caption || '';
+      const many = group.length > 1;
+      $('.p', lb).hidden = !many; $('.n', lb).hidden = !many;
+    };
     const open = (a) => {
       const g = a.dataset.lightbox || 'default';
       group = lbLinks.filter((x) => (x.dataset.lightbox || 'default') === g); i = group.indexOf(a);
@@ -224,11 +244,25 @@
   const toast = document.createElement('div'); toast.className = 'toast'; toast.setAttribute('role', 'status'); document.body.appendChild(toast);
   let toastT = 0;
   const say = (msg) => { toast.textContent = msg; toast.classList.add('show'); clearTimeout(toastT); toastT = setTimeout(() => toast.classList.remove('show'), 2200); };
-  $$('[data-copy]').forEach((b) => b.addEventListener('click', async (e) => {
-    e.preventDefault();
-    try { await navigator.clipboard.writeText(b.dataset.copy); b.classList.add('done'); const t = b.textContent; b.textContent = 'Copied'; say('Copied to clipboard'); setTimeout(() => { b.classList.remove('done'); b.textContent = t; }, 1600); }
-    catch (err) { say('Copy failed — please select the text'); }
-  }));
+  const copyText = async (text) => {
+    if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(text); return; }
+    const ta = document.createElement('textarea');
+    ta.value = text; ta.setAttribute('readonly', ''); ta.style.cssText = 'position:fixed;top:-1000px;opacity:0';
+    document.body.appendChild(ta); ta.select();
+    const ok = document.execCommand && document.execCommand('copy');
+    document.body.removeChild(ta);
+    if (!ok) throw new Error('copy failed');
+  };
+  $$('[data-copy]').forEach((b) => {
+    const label = b.textContent;
+    let t = 0;
+    b.addEventListener('click', async (e) => {
+      e.preventDefault();
+      try { await copyText(b.dataset.copy); b.classList.add('done'); b.textContent = 'Copied'; say('Copied to clipboard'); }
+      catch (err) { say('Copy failed — please select the text'); return; }
+      clearTimeout(t); t = setTimeout(() => { b.classList.remove('done'); b.textContent = label; }, 1600);
+    });
+  });
 
   /* ---------- Contact form → mailto (no backend on GitHub Pages) ---------- */
   const form = $('#contact-form');
@@ -236,7 +270,18 @@
     form.addEventListener('submit', (e) => {
       e.preventDefault();
       const d = Object.fromEntries(new FormData(form).entries());
-      if (!d.name || !d.email || !d.message) { say('Please fill in your name, email and message'); return; }
+      const missing = !d.name ? 'name' : !d.email ? 'email' : !d.message ? 'message' : '';
+      if (missing) {
+        say('Please fill in your name, email and message');
+        const el = form.querySelector('[name="' + missing + '"]');
+        if (el) { el.focus(); el.scrollIntoView({ block: 'center', behavior: reduce ? 'auto' : 'smooth' }); }
+        return;
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(d.email)) {
+        say('That email address does not look right');
+        const el = form.querySelector('[name="email"]'); if (el) el.focus();
+        return;
+      }
       const subject = encodeURIComponent('[Website] ' + (d.topic || 'Enquiry') + ' — ' + d.name);
       const body = encodeURIComponent(d.message + '\n\n—\n' + d.name + (d.company ? ' · ' + d.company : '') + '\n' + d.email + (d.phone ? ' · ' + d.phone : ''));
       window.location.href = 'mailto:' + form.dataset.to + '?subject=' + subject + '&body=' + body;
@@ -249,7 +294,7 @@
     e.preventDefault();
     const url = location.href, title = document.title;
     if (b.dataset.share === 'native' && navigator.share) { try { await navigator.share({ title, url }); } catch (_) {} return; }
-    if (b.dataset.share === 'copy') { try { await navigator.clipboard.writeText(url); say('Link copied'); } catch (_) {} return; }
+    if (b.dataset.share === 'copy') { try { await copyText(url); say('Link copied'); } catch (_) { say('Copy failed — please copy the address bar'); } return; }
     const map = { linkedin: 'https://www.linkedin.com/sharing/share-offsite/?url=' + encodeURIComponent(url), x: 'https://twitter.com/intent/tweet?url=' + encodeURIComponent(url) + '&text=' + encodeURIComponent(title), whatsapp: 'https://wa.me/?text=' + encodeURIComponent(title + ' ' + url) };
     if (map[b.dataset.share]) window.open(map[b.dataset.share], '_blank', 'noopener,width=640,height=560');
   }));
