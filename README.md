@@ -21,9 +21,35 @@ Also: `404.html`, `sitemap.xml`, `robots.txt`, `.nojekyll`.
 
 ## Design
 
-Theme: **Light Frost Glass** — ivory background, frosted-white glass cards, copper accents.
+Theme: **Crimson Executive** — near-black background, frosted glass cards, bright-red accents.
 Fonts are self-hosted variable fonts (Fraunces + Manrope, SIL Open Font License) in `assets/fonts/`.
 Everything lives in `assets/css/style.css` and `assets/js/main.js` (sliders, reveal-on-scroll, tilt/spotlight cards, lightbox, filters, mobile menu, copy-to-clipboard, mailto contact form).
+
+## Responsive behaviour
+
+The site is built mobile-first and verified with headless Chromium across 22 viewports
+(320 → 2560 px, portrait and landscape) on every page — no horizontal scroll, no overflow,
+no overlapping elements, no clipped text and 44 px minimum tap targets on touch devices.
+
+| Breakpoint | What changes |
+| --- | --- |
+| `1600px+` | Wider container (1360px), longer hero measure |
+| `1181–1600px` | Full desktop navigation |
+| `1025–1180px` | Nav labels and brand compress so the header never wraps |
+| `≤1024px` | Burger menu (full-height, scrollable, safe-area aware); hero stacks; footer 2 columns |
+| `≤900px` | Split sections stack; timeline goes single-rail; reveal animations switch to vertical |
+| `≤820px` | Section headers stack, project spec boxes left-align |
+| `≤720px` | Full-width buttons, tighter cards, 2-column mosaic |
+| `≤680px` | All grids single column |
+| `≤560px` | Compact typography, wrapping buttons |
+| `≤440px` | Hero chips move below the portrait, contact rows stack |
+| `≤380px` | Reduced gutter (14px) |
+| landscape `≤520px` tall | Compressed vertical rhythm, scrollable menu |
+
+Also handled: `dvh` viewport units, `env(safe-area-inset-*)` for notched phones,
+`@media (hover:none)` states so touch users see badges/captions that desktop reveals on hover,
+`prefers-reduced-motion`, `forced-colors`, a `@supports` fallback for browsers without
+`backdrop-filter`, and print styles.
 
 ## Writing a new blog post (Media)
 
