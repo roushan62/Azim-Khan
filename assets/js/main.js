@@ -112,10 +112,12 @@
       });
     }
     const dotBtns = dots ? $$('button', dots) : [];
-    const perView = () => { const w = slides[0] ? slides[0].getBoundingClientRect().width : 1; const gap = parseFloat(getComputedStyle(track).gap) || 0; return Math.max(1, Math.round((track.clientWidth + gap) / (w + gap))); };
+    let gapCache = -1;
+    const trackGap = () => { if (gapCache < 0) gapCache = parseFloat(getComputedStyle(track).gap) || 0; return gapCache; };
+    const perView = () => { const w = slides[0] ? slides[0].getBoundingClientRect().width : 1; const gap = trackGap(); return Math.max(1, Math.round((track.clientWidth + gap) / (w + gap))); };
     const maxIdx = () => Math.max(0, slides.length - perView());
     function update() {
-      const w = slides[0] ? slides[0].getBoundingClientRect().width + (parseFloat(getComputedStyle(track).gap) || 0) : 1;
+      const w = slides[0] ? slides[0].getBoundingClientRect().width + trackGap() : 1;
       idx = Math.round(track.scrollLeft / w);
       dotBtns.forEach((d, i) => d.classList.toggle('active', i === Math.min(idx, dotBtns.length - 1)));
       if (prev) prev.disabled = track.scrollLeft <= 2;
@@ -130,13 +132,13 @@
     next && next.addEventListener('click', () => { go(idx >= maxIdx() ? 0 : idx + 1); restart(); });
     let sTick = false;
     track.addEventListener('scroll', () => { if (!sTick) { requestAnimationFrame(() => { update(); sTick = false; }); sTick = true; } }, { passive: true });
-    window.addEventListener('resize', update);
+    window.addEventListener('resize', () => { gapCache = -1; update(); });
 
     // pointer drag (desktop)
     let down = false, startX = 0, startL = 0, moved = false;
     track.addEventListener('pointerdown', (e) => { if (e.pointerType !== 'mouse') return; down = true; moved = false; startX = e.clientX; startL = track.scrollLeft; track.classList.add('dragging'); });
     window.addEventListener('pointermove', (e) => { if (!down) return; const dx = e.clientX - startX; if (Math.abs(dx) > 4) moved = true; track.scrollLeft = startL - dx; });
-    const up = () => { if (!down) return; down = false; track.classList.remove('dragging'); go(Math.round(track.scrollLeft / (slides[0].getBoundingClientRect().width + (parseFloat(getComputedStyle(track).gap) || 0)))); };
+    const up = () => { if (!down) return; down = false; track.classList.remove('dragging'); go(Math.round(track.scrollLeft / (slides[0].getBoundingClientRect().width + trackGap()))); };
     window.addEventListener('pointerup', up); window.addEventListener('pointercancel', up);
     track.addEventListener('click', (e) => { if (moved) { e.preventDefault(); e.stopPropagation(); moved = false; } }, true);
 
